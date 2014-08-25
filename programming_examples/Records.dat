@@ -1,0 +1,148 @@
+1 记录
+1.1 记录VS元组
+使用记录代替元组最主要的优点是记录中的字段可以通过名字定位，而元组只能通过索引。为了说明它们的不同，试想我们想要用元组{Name, Address, Phone}表示一个人。
+为了编写操作这个数据的函数我们必须记住Name字段是元组的第一个元素，Address是第二个元素，等等。例如，为了读取指定字段的数据，我们需要用模式匹配从元组P中提取出来：
+
+Name = element(1, P),
+Address = element(2, P),
+......
+
+这种代码的可读性很差，而且极容易出错比如我们记错了字段在元组中的索引。当我们重新排序、添加或者删除字段时，元组中的所有引用，不论它们在哪，都可能要修改，所以必须要重新检查。
+
+记录允许我们通过名字指向一个字段而不是索引。我们使用记录代替元组去存储数据。如果我们定义一个记录类型如下图所示，我们可以通过名字去指定记录中的字段。
+
+-record(person, {name, phone, address}).
+
+例如，P是一个person记录类型的变量，我们可以向下面这样读取记录中的name和address字段。
+
+Name = P#person.name,
+Address = P#person.address,
+......
+
+记录实际是用一个有标记的元组来实现的:
+{person, Name, Phone, Address}
+
+1.2 定义记录
+记录person的定义会在下面的许多例子中用到。字包含三个字段，name,phone和address。name和address字段的初始值分别是""和[]，如果没有指定字段的初始值，它会默认用原子undefined来赋初始值。
+
+-record(person, {name = "", phone = [], address}).
+
+在命令行下需用下面的语法定义字段：
+
+> rd(person, {name = "", phone = [], address}).
+person
+
+这是因为记录可在编译时定义，而不是运行时。
+
+1.3 创建记录
+一个新的记录可以像下面这样创建:
+
+> #person{phone=[0,8,2,3,4,3,1,2], name="Robert"}.
+#person{name = "Robert",phone = [0,8,2,3,4,3,1,2],address = undefined}.
+
+由于address字段的初始值是省略的，所以默认是undefined.
+
+在Erlang 5.1/OTP R&B中介绍了一个新的特征，你可以给记录的所有字段赋值，优先于记录的默认标准生效。特殊的字段 _ 表示所有没有被显示指定的字段。
+
+> #person{name = "Jakob", _ = '_'}.
+#person{name = "Jakob",phone = '_',address = '_'}
+
+它原本是在ets:match/2和mnesia:match_object/3中使用，给记录字段赋值为'_'.('_'在ets:match/2中是通配符)
+
+1.4 获取记录字段
+> P = #person{name = "Joe", phone = [0,8,2,3,4,3,1,2]}.
+#person{name = "Joe",phone = [0,8,2,3,4,3,1,2],address = undefined}
+> P#person.name.
+"Joe"
+
+1.5 更新记录
+> P1 = #person{name="Joe", phone=[1,2,3], address="A street"}.
+#person{name = "Joe",phone = [1,2,3],address = "A street"}
+> P2 = P1#person{name="Robert"}.
+#person{name = "Robert",phone = [1,2,3],address = "A street"}
+
+1.6 类型检查
+下面的例子表示如果P是person记录类型的变量则会断言成功。
+
+foo(P) when is_record(P, person) -> a_person;
+foo(_) -> not_a_person.
+
+1.7 模式匹配
+记录还可以结合匹配来使用，如下所示:
+
+> P3 = #person{name="Joe", phone=[0,0,7], address="A street"}.
+#person{name = "Joe",phone = [0,0,7],address = "A street"}
+> #person{name = Name} = P3, Name.
+"Joe"
+
+下面的函数接受一个person记录类型的变量列表，查找出记录列表中第一个name字段为特定值的记录的phone字段值：
+
+find_phone([#person{name=Name, phone=Phone} | _], Name) ->
+	{found, Phone};
+find_phone([_|T], Name) ->
+	find_phone(T, Name);
+find_phone([], Name) ->
+	not_found.
+
+该模式中提到的字段可以是任意顺序。
+
+1.8 嵌套记录
+记录中的字段可以是另一个字段的实例。可以通过逐步或者单步的方式检索嵌套数据，如下所示：
+
+-record(name, {first = "Robert", last = "Ericsson"}).
+-record(person, {name = #name{}, phone}).
+
+demo() ->
+	P = #person{name = #name{first="Robert",last="Virding"}, phone=123},
+	First = (P#person.name)#name.first.
+
+本例中，demo()的返回值是"Robert".
+
+1.9 例子
+%% File: person.hrl
+
+%%-----------------------------------------------------------
+%% Data Type: person
+%% where:
+%%    name:  A string (default is undefined).
+%%    age:   An integer (default is undefined).
+%%    phone: A list of integers (default is []).
+%%    dict:  A dictionary containing various information 
+%%           about the person. 
+%%           A {Key, Value} list (default is the empty list).
+%%------------------------------------------------------------
+-record(person, {name, age, phone = [], dict = []}).
+-module(person).
+-include("person.hrl").
+-compile(export_all). % For test purposes only.
+
+%% This creates an instance of a person.
+%%   Note: The phone number is not supplied so the
+%%         default value [] will be used.
+
+make_hacker_without_phone(Name, Age) ->
+   #person{name = Name, age = Age, 
+           dict = [{computer_knowledge, excellent}, 
+                   {drinks, coke}]}.
+
+%% This demonstrates matching in arguments
+
+print(#person{name = Name, age = Age,
+              phone = Phone, dict = Dict}) ->
+  io:format("Name: ~s, Age: ~w, Phone: ~w ~n" 
+            "Dictionary: ~w.~n", [Name, Age, Phone, Dict]).
+
+%% Demonstrates type testing, selector, updating.
+
+birthday(P) when record(P, person) -> 
+   P#person{age = P#person.age + 1}.
+
+register_two_hackers() ->
+   Hacker1 = make_hacker_without_phone("Joe", 29),
+   OldHacker = birthday(Hacker1),
+   % The central_register_server should have 
+   % an interface function for this.
+   central_register_server ! {register_person, Hacker1},
+   central_register_server ! {register_person, 
+             OldHacker#person{name = "Robert", 
+                              phone = [0,8,3,2,4,5,3,1]}}.
