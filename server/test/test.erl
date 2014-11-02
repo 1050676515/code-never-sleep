@@ -3,14 +3,20 @@
 
 
 start() ->
+	{ok,File}=file:open("test.txt",[write]),
 	lists:foreach(fun(Num) ->
-			spawn(fun() -> test(Num, 2345) end)
-	end, lists:seq(1, 100)).
+			spawn(fun() -> test(File, Num, 2345) end),
+			receive
+				_ -> skip
+			after 10 ->
+				skip
+			end
+	end, lists:seq(1, 30000)).
 
-test(Num, Port) ->
+test(File, Num, Port) ->
 	case gen_tcp:connect("127.0.0.1", Port, [binary, {packet, 4}]) of
 		{ok, _} ->
-			io:format("~p~n", [Num]),
+			io:format(File, "~p~n", [Num]),
 			receive
 				_Any ->
 					io:format("Any: ~p~n", [_Any])

@@ -34,18 +34,14 @@ handle_cast(_Msg, State) ->
 	{noreply, State}.
 
 handle_info({inet_async, LSock, Ref, {ok, Socket}}, #state{socket = LSock, ref = Ref} = State) ->
-	case set_sockopt(LSock, Socket) of
-		ok -> ok;
-		{error, Reason} -> exit({set_sockopt, Reason})
-	end,
-	private_start_client(Socket),
+	private_start_client(Socket, LSock),
 	private_accept(State);
 
 handle_info({inet_async, LSock, Ref, Error}, #state{socket = LSock, ref = Ref} = State) ->
 	{stop, Error, State};
 
-handle_info(_Info, State) ->
-	{noreply, State}.
+handle_info(Info, State) ->
+	{stop, Info, State}.
 
 terminate(_Reason, _State) ->
 	ok.
@@ -57,24 +53,7 @@ private_accept(#state{socket = LSock} = State) ->
 	{ok, Ref} = prim_inet:async_accept(LSock, -1),
 	{noreply, State#state{ref = Ref}}.
 
-private_start_client(Socket) ->
-	{ok, Child} = supervisor:start_child(gs_tcp_client_sup, []),
-	ok = gen_tcp:controlling_process(Socket, Child),
-	gen_server:cast(Child, {socket, Socket}).
-
-
-set_sockopt(LSock, Socket) ->
-	true = inet_db:register_socket(Socket, inet_tcp),
-	case prim_inet:getopts(LSock, [active, packet, nodelay, keepalive, delay_send, priority, tos]) of
-		{ok, Opts} ->
-			case prim_inet:setopts(Socket, Opts) of
-				ok ->
-					ok;
-				Error ->
-					gen_tcp:close(Socket),
-					Error
-			end;
-		Error ->
-			gen_tcp:close(Socket),
-			Error
-	end.
+private_start_client(Socket, LSock) ->
+	Child = gs_tcp_client:start(Socket),
+	ok = gen_tcp:controlling_process(Socket, Child).
+%	gen_server:cast(Child, {socket, Socket, LSock}).

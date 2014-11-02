@@ -10,8 +10,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([start_link/1]).
 
--define(SOCKET_OPTIONS, [binary, {packet, 4}, {active, false}, {keepalive, true},{reuseaddr, true}, {send_timeout, 5000}, {nodelay, false}, {delay_send, true}, {exit_on_close, true}]).
--define(MAX_COUNT, 10).
+-define(SOCKET_OPTIONS, [binary, {backlog, 20}, {packet, 4}, {active, false}, {keepalive, true},{reuseaddr, true}, {send_timeout, 5000}, {nodelay, false}, {delay_send, true}, {exit_on_close, true}]).
+-define(MAX_COUNT, 30).
 
 start_link(Port) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Port], []).
